@@ -1,0 +1,139 @@
+<html>
+    <head>
+        <title>Logograms</title>
+        <script src="https://cdn.jsdelivr.net/npm/p5@1.9.0/lib/p5.js"></script>
+    </head>
+    <style>
+        body, html {
+            background: linear-gradient(white, grey);
+            width: 100vw;
+            height: 100vh;
+            margin: 0;
+            box-sizing: border-box;
+            overflow: hidden;
+        }
+        canvas {
+            margin: 0 auto;
+            display: block;
+            box-sizing: border-box;
+            
+            width: 800px !important;
+            height: 800px !important;
+            image-rendering: pixelated;
+        }
+        #seed {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: transparent;
+            border: none;
+            border-bottom: 1px solid black;
+            text-align: center;
+            font-size: 20px;
+            box-sizing: border-box;
+            font-family: Courier;
+            outline: none;
+        }
+    </style>
+    <body>
+        <input type="text" id="seed" placeholder="Seed" />
+        <script>
+            function setup() {
+                var canvas = createCanvas(800, 800);
+                canvas.mousePressed(newSeed);
+                // createCanvas(1600, 1600);
+                // background("#ffffff");
+                pixelDensity(1);
+                noStroke();
+                noiseDetail(3, 0.8);
+                noLoop();
+            }
+
+            // https://stackoverflow.com/questions/6122571/simple-non-secure-hash-function-for-javascript
+            function hashCode(str) {
+                let hash = 0;
+                for (let i = 0, len = str.length; i < len; i++) {
+                    let chr = str.charCodeAt(i);
+                    hash = (hash << 5) - hash + chr;
+                    hash |= 0; // Convert to 32-bit integer
+                }
+                return hash;
+            }
+
+            // function smoothstep(edge0, edge1, x) {
+            //     var t = constrain((x - edge0) / (edge1 - edge0), 0.0, 1.0);
+            //     return t * t * (3.0 - 2.0 * t);
+            // }
+            
+            // Translate word/phrase into particular logogram -- disclaimer: these don't match the ones in the movie
+            const seed = document.getElementById("seed");
+            function newSeed() {
+                if (seed.value == "") noiseSeed(Date.now());
+                else noiseSeed(hashCode(seed.value));
+                redraw();
+            }
+            seed.addEventListener("change", newSeed);
+
+            function draw() {
+                clear();
+                loadPixels();
+
+                // Gives good results, but can be modified:
+                var scale = width / 800 * 500;
+                var ringRadius = width / 4; // px
+                var ringThickness = ringRadius; // px
+
+                for (var y = 0; y < height; y += 1) {
+                    for (var x = 0; x < width; x += 1) {
+                        var i = (y * width + x) * 4;
+                        var nx = x / scale;
+                        var ny = y / scale;
+
+                        var ringDistance = dist(width / 2, height / 2, x, y);
+
+                        var filter = (1 - (abs(ringDistance - ringRadius) / ringThickness)**0.33) * 2; // Plot on desmos to see
+
+                        if (filter > 0) {
+                            // Domain warping by Inigo Quilez:
+                            // https://iquilezles.org/articles/warp/
+                            var qx = noise(nx, ny);
+                            var qy = noise(nx + 5.2 * scale, ny + 1.3 * scale);
+                            var rx = noise(nx + 4 * qx + 1.7 * scale, ny + 4 * qy + 9.2 * scale);
+                            var ry = noise(nx + 4 * qx + 8.3 * scale, ny + 4 * qy + 2.8 * scale);
+            
+                            var val = noise(nx + 4 * rx, ny + 4 * ry);
+                            val *= filter;
+                            val *= noise(nx + 1000, ny);
+
+                            var col = 255; // White background
+                            if (val > 0.5) {
+                                col = 0; // Black ink color
+                            }
+                            else if (noise(ringDistance / 2) > 0.5 && filter * noise(nx + 2000, ny) > 0.98) { // Second ring
+                                col = 0; // Streaks
+                            }
+                            else { // Transparent background; remove to show white background
+                                continue;
+                            }
+                            
+                            // Experimental: Anti-aliasing
+                            // col *= 1 - smoothstep(0.49, 0.51, val);
+                            // col *= 1 - smoothstep(0.97, 0.99, filter * noise(nx + 2000, ny)) * smoothstep(0.0, 1.0, noise(ringDistance / 2));
+
+                            // Final to-do: add the trails of ink jutting far outwards
+                            // Try tracing the random walk of shrinking circles?:
+                            // https://mathematica.stackexchange.com/a/4224
+
+                            pixels[i] = col;
+                            pixels[i + 1] = col;
+                            pixels[i + 2] = col;
+                            pixels[i + 3] = 255;
+                        }
+                    }
+                }
+                updatePixels();
+            }
+        </script>
+    </body>
+</html>
